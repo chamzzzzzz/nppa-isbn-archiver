@@ -158,12 +158,14 @@ def main():
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
     options = webdriver.ChromeOptions()
+    options.page_load_strategy = 'eager'
     if args.headless:
         options.add_argument("--headless")
         options.add_argument("--window-size=1920,1080")
 
     logging.info('starting webdriver...')
     driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(30)
     stealth(
         driver,
         languages=["en-US", "en"],
