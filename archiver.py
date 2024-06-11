@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from selenium_stealth import stealth
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ import os
 import datetime
 import smtplib
 import re
+import sys
 
 ChannelImportOnlineGameApprovaled = "jkwlyxspxx"
 ChannelImportElectronicGameApprovaled = "jkdzyxspxx"
@@ -60,6 +62,7 @@ def get_page_contents(driver, page):
 
     driver.get(url)
     WebDriverWait(driver, 30).until(lambda driver: "国家新闻出版署" == driver.title)
+    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.footer")))
 
     try:
         driver.find_element(By.CSS_SELECTOR, "div.g-font-size-140.g-font-size-100--2xs.g-line-height-1.g-mb-10")
@@ -87,6 +90,7 @@ def get_channel(url):
 def get_items(driver, content):
     driver.get(content.url)
     WebDriverWait(driver, 30).until(lambda driver: "国家新闻出版署" == driver.title)
+    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.footer")))
 
     channel = get_channel(content.url)
     items = []
@@ -145,7 +149,7 @@ def get_items(driver, content):
         items.append(item)
     return items
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--headless', action='store_true', help='webdriver headless')
     parser.add_argument('--full', action='store_true', help='full archive')
@@ -158,14 +162,14 @@ def main():
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
     options = webdriver.ChromeOptions()
-    options.page_load_strategy = 'eager'
+    options.page_load_strategy = 'none'
     if args.headless:
         options.add_argument("--headless")
         options.add_argument("--window-size=1920,1080")
 
     logging.info('starting webdriver...')
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(30)
+    driver.set_page_load_timeout(60)
     stealth(
         driver,
         languages=["en-US", "en"],
@@ -192,7 +196,7 @@ def main():
             break
         except Exception as e:
             logging.error(f'get page contents fail. page={i}, err={e}')
-            return
+            return 1
         logging.info(f'get page contents success. page={i}, contents={len(contents)}')
         bn.extend(contents)
     logging.info(f'get contents success. contents={len(bn)}')
@@ -207,7 +211,7 @@ def main():
                 continue
         except Exception as e:
             logging.error(f'should skip fail. title={content.title}, path={p}, err={e}')
-            return
+            return 1
 
         try:
             items = get_items(driver, content)
@@ -215,7 +219,7 @@ def main():
             logging.info(f'get content items success. title={content.title}, items={len(items)}')
         except Exception as e:
             logging.error(f'get content items fail. title={content.title}, err={e}')
-            return
+            return 1
 
         if len(content.items) == 0:
             logging.info(f'skip empty content. title={content.title}')
@@ -231,7 +235,7 @@ def main():
         pass
     except Exception as e:
         logging.error(f'mkdir data fail. err={e}')
-        return
+        return 1
 
     for content in newbn:
         p = f'data/{content.title}.json'
@@ -240,10 +244,11 @@ def main():
             logging.info(f'write content success. title={content.title}, path={p}')
         except Exception as e:
             logging.error(f'write content fail. title={content.title}, path={p}, err={e}')
-            return
+            return 1
 
     if not args.full and len(newbn) > 0:
         notification(newbn, args.addr, args.user, args.passwd, args.to)
+    return 0
 
 def should_skip(path, content: Content) -> tuple[Content, bool]:
     if not os.path.exists(path):
@@ -322,4 +327,4 @@ def notification(contents: list[Content], addr: str, user: str, passwd: str, to:
         logging.error(f'send notification fail. err={e}')
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
